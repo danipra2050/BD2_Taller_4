@@ -14,15 +14,10 @@ import com.google.cloud.bigtable.data.v2.models.RowMutation;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-public class BigTable extends Thread{
+public class Weather extends Thread{
 
     private static final String PROJECT_ID = "unbosque-webprogramming";
     private static final String INSTANCE_ID = "table-1";
@@ -32,18 +27,16 @@ public class BigTable extends Thread{
     private static final String DATE_TIME = "DATE_TIME";
     private static final String PLANT_ID = "PLANT_ID";
     private static final String SOURCE_KEY = "SOURCE_KEY";
-    private static final String DC_POWER = "DC_POWER";
-    private static final String AC_POWER = "AC_POWER";
-    private static final String DAILY_YIELD = "DAILY_YIELD";
-    private static final String TOTAL_YIELD = "TOTAL_YIELD";
+    private static final String AMBIENT_TEMPERATURE = "AMBIENT_TEMPERATURE";
+    private static final String MODULE_TEMPERATURE = "MODULE_TEMPERATURE";
+    private static final String IRRADIATION = "IRRADIATION";
 
     private final BigtableDataClient dataClient;
     private final BigtableTableAdminClient adminClient;
     private String nombreTabla;
     private String nombreArchivo;
-    SimpleDateFormat formato = new SimpleDateFormat("dd/MM/yyyy");
 
-    public BigTable(String nombreTabla, String nombreArchivo) throws IOException {
+    public Weather(String nombreTabla, String nombreArchivo) throws IOException {
         this.nombreTabla = nombreTabla;
         this.nombreArchivo = nombreArchivo;
 
@@ -61,8 +54,8 @@ public class BigTable extends Thread{
         adminClient = BigtableTableAdminClient.create(adminSettings);
     }
 
-    public void crearTabla(String nombreTabla){
-        if(!adminClient.exists(nombreTabla)){
+    public void crearTabla(){
+        if(!adminClient.exists(this.nombreTabla)){
             CreateTableRequest createTableRequest = CreateTableRequest.of(nombreTabla).addFamily(COLUMN_FAMILY);
             adminClient.createTable(createTableRequest);
             System.out.printf("Tabla %s creada exitosamente.", nombreTabla);
@@ -73,7 +66,7 @@ public class BigTable extends Thread{
         }
     }
 
-    public void cargarDatosPlanta(){
+    public void cargarClima(){
         try (BufferedReader bufferedReader = new BufferedReader(
                 new FileReader(this.nombreArchivo)
         )) {
@@ -86,12 +79,11 @@ public class BigTable extends Thread{
                             .setCell(COLUMN_FAMILY, DATE_TIME, data[0])
                             .setCell(COLUMN_FAMILY, PLANT_ID, data[1])
                             .setCell(COLUMN_FAMILY, SOURCE_KEY, data[2])
-                            .setCell(COLUMN_FAMILY, DC_POWER, data[3])
-                            .setCell(COLUMN_FAMILY, AC_POWER, data[4])
-                            .setCell(COLUMN_FAMILY, DAILY_YIELD, data[5])
-                            .setCell(COLUMN_FAMILY, TOTAL_YIELD, data[6]);
+                            .setCell(COLUMN_FAMILY, AMBIENT_TEMPERATURE, data[3])
+                            .setCell(COLUMN_FAMILY, MODULE_TEMPERATURE, data[4])
+                            .setCell(COLUMN_FAMILY, IRRADIATION, data[5]);
                     dataClient.mutateRow(rowMutation);
-                    System.out.println("Creacion registro: " + ROW_KEY + i);
+                    System.out.println("Creacion registro Wheather: " + ROW_KEY + i);
                 }
 
                 line = bufferedReader.readLine();
@@ -102,7 +94,7 @@ public class BigTable extends Thread{
         }
     }
 
-    public void obtenerLista(){
+    public void obtenerClave(){
         try {
             Query query = Query.create(this.nombreTabla);
             ServerStream<Row> rowStream = dataClient.readRows(query);
@@ -112,20 +104,21 @@ public class BigTable extends Thread{
             }
             List<RowCell> rowCellList = new ArrayList<>();
             for (int i = 0; i < rowList.size(); i++) {
-                rowCellList.addAll(rowList.get(i).getCells());
-            }
-            for(RowCell cell : rowCellList){
-                if(cell.getValue().toStringUtf8().contains("1IF53ai7Xc0U56Y")){
-                    System.out.println(cell.getQualifier().toStringUtf8() + " -> " + cell.getValue().toStringUtf8());
+                for(RowCell rowCell : rowList.get(i).getCells()){
+                    rowCellList.add(rowCell);
                 }
             }
 
-        }catch(Exception exception) {
-            exception.printStackTrace();
+            Object[] resultado = rowCellList.stream().filter(
+                    rc -> rc.getQualifier().toStringUtf8().contains(SOURCE_KEY) &&
+                            rc.getValue().toStringUtf8().contains("adLQvlD726eNBSB")
+            ).toArray();
+        }catch (Exception e){
+            e.printStackTrace();
         }
     }
 
-    public  void run() {
-        cargarDatosPlanta();
+    public void run(){
+        cargarClima();
     }
 }
